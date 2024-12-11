@@ -15,19 +15,20 @@ conda activate discrete_flow_matching
 
 ## Usage
 
+Specify the data cache and checkpoint directories. Data will automatically be downloaded into the cache directory.
+```bash
+CACHE_DIR=...
+HYDRA_RUN_DIR=...
+```
+
 To train a discrete flow matching model on fine-web-edu, run:
 
 ```bash
-CACHE_DIR=...
-
 python run_train.py data.cache_dir=${CACHE_DIR}
 ```
 
 To use `slurm`, modify the `slurm` config according to the cluster you are working on, and run:
 ```bash
-CACHE_DIR=...
-HYDRA_RUN_DIR=...
-
 python run_train.py data.cache_dir=${CACHE_DIR} hydra_dir=${HYDRA_RUN_DIR} -m &
 ```
 
