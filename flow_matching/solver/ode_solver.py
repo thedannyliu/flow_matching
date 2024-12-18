@@ -27,7 +27,6 @@ class ODESolver(Solver):
         super().__init__()
         self.velocity_model = velocity_model
 
-    @torch.no_grad()
     def sample(
         self,
         x_init: Tensor,
@@ -37,6 +36,7 @@ class ODESolver(Solver):
         rtol: float = 1e-5,
         time_grid: Tensor = torch.tensor([0.0, 1.0]),
         return_intermediates: bool = False,
+        enable_grad: bool = False,
         **model_extras,
     ) -> Union[Tensor, Sequence[Tensor]]:
         r"""Solve the ODE with the velocity field.
@@ -72,6 +72,7 @@ class ODESolver(Solver):
             rtol (float): Relative tolerance, used for adaptive step solvers.
             time_grid (Tensor): The process is solved in the interval [min(time_grid, max(time_grid)] and if step_size is None then time discretization is set by the time grid. May specify a descending time_grid to solve in the reverse direction. Defaults to torch.tensor([0.0, 1.0]).
             return_intermediates (bool, optional): If True then return intermediate time steps according to time_grid. Defaults to False.
+            enable_grad (bool, optional): Whether to compute gradients during sampling. Defaults to False.
             **model_extras: Additional input for the model.
 
         Returns:
@@ -85,23 +86,23 @@ class ODESolver(Solver):
 
         ode_opts = {"step_size": step_size} if step_size is not None else {}
 
-        # Approximate ODE solution with numerical ODE solver
-        sol = odeint(
-            ode_func,
-            x_init,
-            time_grid,
-            method=method,
-            options=ode_opts,
-            atol=atol,
-            rtol=rtol,
-        )
+        with torch.set_grad_enabled(enable_grad):
+            # Approximate ODE solution with numerical ODE solver
+            sol = odeint(
+                ode_func,
+                x_init,
+                time_grid,
+                method=method,
+                options=ode_opts,
+                atol=atol,
+                rtol=rtol,
+            )
 
         if return_intermediates:
             return sol
         else:
             return sol[-1]
 
-    @torch.no_grad()
     def compute_likelihood(
         self,
         x_1: Tensor,
@@ -113,6 +114,7 @@ class ODESolver(Solver):
         time_grid: Tensor = torch.tensor([1.0, 0.0]),
         return_intermediates: bool = False,
         exact_divergence: bool = False,
+        enable_grad: bool = False,
         **model_extras,
     ) -> Union[Tuple[Tensor, Tensor], Tuple[Sequence[Tensor], Tensor]]:
         r"""Solve for log likelihood given a target sample at :math:`t=0`.
@@ -130,6 +132,7 @@ class ODESolver(Solver):
             time_grid (Tensor): If step_size is None then time discretization is set by the time grid. Must start at 1.0 and end at 0.0, otherwise the likelihood computation is not valid. Defaults to torch.tensor([1.0, 0.0]).
             return_intermediates (bool, optional): If True then return intermediate time steps according to time_grid. Otherwise only return the final sample. Defaults to False.
             exact_divergence (bool): Whether to compute the exact divergence or use the Hutchinson estimator.
+            enable_grad (bool, optional): Whether to compute gradients during sampling. Defaults to False.
             **model_extras: Additional input for the model.
 
         Returns:
@@ -174,7 +177,7 @@ class ODESolver(Solver):
         y_init = (x_1, torch.zeros(x_1.shape[0], device=x_1.device))
         ode_opts = {"step_size": step_size} if step_size is not None else {}
 
-        with torch.no_grad():
+        with torch.set_grad_enabled(enable_grad):
             sol, log_det = odeint(
                 dynamics_func,
                 y_init,

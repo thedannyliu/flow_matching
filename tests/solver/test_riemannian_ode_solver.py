@@ -26,11 +26,22 @@ class ZeroVelocityModel(torch.nn.Module):
         return torch.zeros_like(x)
 
 
+class ExtraModel(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, x, t, must_be_true=False):
+        assert must_be_true
+        return torch.zeros_like(x)
+
+
 class TestRiemannianODESolver(unittest.TestCase):
     def setUp(self):
         self.manifold = Sphere()
         self.velocity_model = HundredVelocityModel()
         self.solver = RiemannianODESolver(self.manifold, self.velocity_model)
+        self.extra_model = ExtraModel()
+        self.extra_solver = RiemannianODESolver(self.manifold, self.extra_model)
 
     def test_init(self):
         self.assertEqual(self.solver.manifold, self.manifold)
@@ -151,6 +162,53 @@ class TestRiemannianODESolver(unittest.TestCase):
             return_intermediates=True,
         )
         self.assertEqual(result.shape, (3, 1, 3))  # Two intermediate points
+
+    def test_model_extras(self):
+        x_init = self.manifold.projx(torch.randn(1, 3))
+        step_size = 0.01
+        time_grid = torch.tensor([0.0, 0.5, 1.0])
+        result = self.extra_solver.sample(
+            x_init,
+            step_size,
+            method="euler",
+            time_grid=time_grid,
+            return_intermediates=True,
+            must_be_true=True,
+        )
+        self.assertEqual(result.shape, (3, 1, 3))
+
+        with self.assertRaises(AssertionError):
+            result = self.extra_solver.sample(
+                x_init,
+                step_size,
+                method="euler",
+                time_grid=time_grid,
+                return_intermediates=True,
+            )
+
+    def test_gradient(self):
+        x_init = torch.tensor(
+            self.manifold.projx(torch.randn(1, 3)), requires_grad=True
+        )
+        step_size = 0.01
+        time_grid = torch.tensor([0.0, 1.0])
+        result = self.solver.sample(
+            x_init, step_size, method="euler", time_grid=time_grid, enable_grad=True
+        )
+        result.sum().backward()
+        self.assertIsInstance(x_init.grad, torch.Tensor)
+
+    def test_no_gradient(self):
+        x_init = torch.tensor(
+            self.manifold.projx(torch.randn(1, 3)), requires_grad=True
+        )
+        step_size = 0.01
+        time_grid = torch.tensor([0.0, 1.0])
+        result = self.solver.sample(
+            x_init, step_size, method="euler", time_grid=time_grid, enable_grad=False
+        )
+        with self.assertRaises(RuntimeError):
+            result.sum().backward()
 
 
 if __name__ == "__main__":

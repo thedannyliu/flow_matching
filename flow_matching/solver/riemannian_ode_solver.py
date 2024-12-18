@@ -31,7 +31,6 @@ class RiemannianODESolver(Solver):
         self.manifold = manifold
         self.velocity_model = velocity_model
 
-    @torch.no_grad()
     def sample(
         self,
         x_init: Tensor,
@@ -42,6 +41,7 @@ class RiemannianODESolver(Solver):
         time_grid: Tensor = torch.tensor([0.0, 1.0]),
         return_intermediates: bool = False,
         verbose: bool = False,
+        enable_grad: bool = False,
         **model_extras,
     ) -> Tensor:
         r"""Solve the ODE with the `velocity_field` on the manifold.
@@ -55,6 +55,7 @@ class RiemannianODESolver(Solver):
             time_grid (Tensor, optional): The process is solved in the interval [min(time_grid, max(time_grid)] and if step_size is None then time discretization is set by the time grid. Defaults to torch.tensor([0.0,1.0]).
             return_intermediates (bool, optional): If True then return intermediate time steps according to time_grid. Defaults to False.
             verbose (bool, optional): Whether to print progress bars. Defaults to False.
+            enable_grad (bool, optional): Whether to compute gradients during sampling. Defaults to False.
             **model_extras: Additional input for the model.
 
         Returns:
@@ -67,6 +68,9 @@ class RiemannianODESolver(Solver):
         }
         assert method in step_fns.keys(), f"Unknown method {method}"
         step_fn = step_fns[method]
+
+        def velocity_func(x, t):
+            return self.velocity_model(x=x, t=t, **model_extras)
 
         # --- Factor this out.
         time_grid = torch.sort(time_grid.to(device=x_init.device)).values
@@ -98,29 +102,30 @@ class RiemannianODESolver(Solver):
             xts = []
             i_ret = 0
 
-        xt = x_init
-        for t0, t1 in zip(t0s, t_discretization[1:]):
-            dt = t1 - t0
-            xt_next = step_fn(
-                self.velocity_model,
-                xt,
-                t0,
-                dt,
-                manifold=self.manifold,
-                projx=projx,
-                proju=proju,
-            )
-            if return_intermediates:
-                while (
-                    i_ret < len(time_grid)
-                    and t0 <= time_grid[i_ret]
-                    and time_grid[i_ret] <= t1
-                ):
-                    xts.append(
-                        interp(self.manifold, xt, xt_next, t0, t1, time_grid[i_ret])
-                    )
-                    i_ret += 1
-            xt = xt_next
+        with torch.set_grad_enabled(enable_grad):
+            xt = x_init
+            for t0, t1 in zip(t0s, t_discretization[1:]):
+                dt = t1 - t0
+                xt_next = step_fn(
+                    velocity_func,
+                    xt,
+                    t0,
+                    dt,
+                    manifold=self.manifold,
+                    projx=projx,
+                    proju=proju,
+                )
+                if return_intermediates:
+                    while (
+                        i_ret < len(time_grid)
+                        and t0 <= time_grid[i_ret]
+                        and time_grid[i_ret] <= t1
+                    ):
+                        xts.append(
+                            interp(self.manifold, xt, xt_next, t0, t1, time_grid[i_ret])
+                        )
+                        i_ret += 1
+                xt = xt_next
 
         if return_intermediates:
             return torch.stack(xts, dim=0)
