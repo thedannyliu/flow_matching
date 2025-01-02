@@ -9,11 +9,17 @@ from typing import Callable
 
 import torch
 from torch import Tensor
-from tqdm import tqdm
 
 from flow_matching.solver.solver import Solver
 from flow_matching.utils import ModelWrapper
 from flow_matching.utils.manifolds import geodesic, Manifold
+
+try:
+    from tqdm import tqdm
+
+    TQDM_AVAILABLE = True
+except ImportError:
+    TQDM_AVAILABLE = False
 
 
 class RiemannianODESolver(Solver):
@@ -60,6 +66,9 @@ class RiemannianODESolver(Solver):
 
         Returns:
             Tensor: The sampled sequence. Defaults to returning samples at :math:`t=1`.
+
+        Raises:
+            ImportError: To run in verbose mode, tqdm must be installed.
         """
         step_fns = {
             "euler": _euler_step,
@@ -96,6 +105,10 @@ class RiemannianODESolver(Solver):
         t0s = t_discretization[:-1]
 
         if verbose:
+            if not TQDM_AVAILABLE:
+                raise ImportError(
+                    "tqdm is required for verbose mode. Please install it."
+                )
             t0s = tqdm(t0s)
 
         if return_intermediates:

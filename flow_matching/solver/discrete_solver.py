@@ -12,13 +12,19 @@ import torch
 from torch import Tensor
 
 from torch.nn import functional as F
-from tqdm import tqdm
 
 from flow_matching.path import MixtureDiscreteProbPath
 
 from flow_matching.solver.solver import Solver
 from flow_matching.utils import categorical, ModelWrapper
 from .utils import get_nearest_times
+
+try:
+    from tqdm import tqdm
+
+    TQDM_AVAILABLE = True
+except ImportError:
+    TQDM_AVAILABLE = False
 
 
 class MixtureDiscreteEulerSolver(Solver):
@@ -130,6 +136,9 @@ class MixtureDiscreteEulerSolver(Solver):
 
         Returns:
             Tensor: The sampled sequence of discrete values.
+
+        Raises:
+            ImportError: To run in verbose mode, tqdm must be installed.
         """
         if not div_free == 0.0:
             assert (
@@ -173,6 +182,10 @@ class MixtureDiscreteEulerSolver(Solver):
             res = [x_init.clone()]
 
         if verbose:
+            if not TQDM_AVAILABLE:
+                raise ImportError(
+                    "tqdm is required for verbose mode. Please install it."
+                )
             ctx = tqdm(total=t_final, desc=f"NFE: {steps_counter}")
         else:
             ctx = nullcontext()
