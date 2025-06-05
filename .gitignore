@@ -40,7 +40,7 @@ examples/image_generation/data
 examples/*/output_dir*
 examples/image/scripts
 examples/image/outputs
-examples/image/data
+# examples/image/data
 examples/image/output_dir
 examples/images/*
 examples/imagenet/*
