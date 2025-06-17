@@ -36,14 +36,45 @@ python train.py --data_path=${IMAGENET_DIR}train_blurred_$IMAGENET_RES/box/ --te
 5. Launch training on a SLURM cluster
 
 ```
-python submitit_train.py --data_path=${IMAGENET_DIR}train_blurred_$IMAGENET_RES/box/ 
+python submitit_train.py --data_path=${IMAGENET_DIR}train_blurred_$IMAGENET_RES/box/
 ```
+
+Training will periodically save checkpoints under `--output_dir`. To continue a
+stopped run, pass the path to the latest checkpoint using `--resume` or simply
+use the `--auto_resume` flag to automatically load `<output_dir>/checkpoint.pth` if it exists.
 
 6. Evaluate the model using the `--eval_only` flag. The evaluation script will generate snapshots under the `/snapshots` folder. Specify the `--compute_fid` flag to also compute the FID with respect to the training set. Make sure to specify your most recent checkpoint to resume from. The results are printed to `log.txt`.
 
 ```
 python submitit_train.py --data_path=${IMAGENET_DIR}train_blurred_$IMAGENET_RES/box/ --resume=./output_dir/checkpoint-899.pth --compute_fid --eval_only
 ```
+
+### Training with a custom dataset
+
+Prepare your dataset with the following folder structure:
+
+```
+my_dataset/
+  train/
+    class_a/
+      img1.jpg
+      img2.jpg
+    class_b/
+      img3.jpg
+      ...
+  val/
+    class_a/
+      ...
+    class_b/
+      ...
+```
+
+Specify the training and validation directories when launching training. For example:
+
+```
+python train.py --dataset=custom2 --data_path=path/to/my_dataset/train --val_data_path=path/to/my_dataset/val --epochs=2 --batch_size=4
+```
+
 
 
 ## Results

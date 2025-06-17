@@ -82,7 +82,13 @@ def get_args_parser():
         "--data_path",
         default="./data/image_generation",
         type=str,
-        help="imagenet root folder with train, val and test subfolders",
+        help="training split root folder",
+    )
+    parser.add_argument(
+        "--val_data_path",
+        default=None,
+        type=str,
+        help="validation split root folder (defaults to <data_path>/val if not provided)",
     )
 
     parser.add_argument(
@@ -142,6 +148,11 @@ def get_args_parser():
     )
     parser.add_argument("--seed", default=0, type=int)
     parser.add_argument("--resume", default="", help="resume from checkpoint")
+    parser.add_argument(
+        "--auto_resume",
+        action="store_true",
+        help="Automatically resume from <output_dir>/checkpoint.pth if it exists and --resume is not set",
+    )
 
     parser.add_argument(
         "--start_epoch",
