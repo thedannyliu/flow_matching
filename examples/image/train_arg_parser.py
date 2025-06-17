@@ -153,6 +153,12 @@ def get_args_parser():
         action="store_true",
         help="Automatically resume from <output_dir>/checkpoint.pth if it exists and --resume is not set",
     )
+    parser.add_argument(
+        "--keep_last_epochs",
+        default=10,
+        type=int,
+        help="Number of recent checkpoints to keep.",
+    )
 
     parser.add_argument(
         "--start_epoch",
