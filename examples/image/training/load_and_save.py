@@ -35,6 +35,18 @@ def save_model(
             }
 
             save_on_master(to_save, checkpoint_path)
+        if is_main_process():
+            keep_last = getattr(args, "keep_last_epochs", 10)
+            checkpoints = sorted(
+                output_dir.glob("checkpoint-*.pth"),
+                key=lambda p: int(p.stem.split("-")[1]),
+            )
+            if len(checkpoints) > keep_last:
+                for ckpt in checkpoints[:-keep_last]:
+                    try:
+                        ckpt.unlink()
+                    except OSError as exc:
+                        print(f"Failed to remove old checkpoint {ckpt}: {exc}")
     else:
         client_state = {"epoch": epoch}
         model.save_checkpoint(
@@ -51,7 +63,7 @@ def load_model(args, model_without_ddp, optimizer, loss_scaler, lr_schedule):
                 args.resume, map_location="cpu", check_hash=True
             )
         else:
-            checkpoint = torch.load(args.resume, map_location="cpu")
+            checkpoint = torch.load(args.resume, map_location="cpu", weights_only=False)
         model_without_ddp.load_state_dict(checkpoint["model"])
         print("Resume checkpoint %s" % args.resume)
         if (

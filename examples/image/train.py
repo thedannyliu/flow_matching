@@ -58,8 +58,13 @@ def main(args):
 
     logger.info(f"Initializing Dataset: {args.dataset}")
     transform_train = get_train_transform()
-    if args.dataset == "imagenet":
-        dataset_train = datasets.ImageFolder(args.data_path, transform=transform_train)
+    if args.dataset in ["imagenet", "custom2"]:
+        train_path = args.data_path
+        val_path = args.val_data_path
+        if val_path is None:
+            val_path = os.path.join(os.path.dirname(train_path), "val")
+        dataset_train = datasets.ImageFolder(train_path, transform=transform_train)
+        dataset_val = datasets.ImageFolder(val_path, transform=transform_train)
     elif args.dataset == "cifar10":
         dataset_train = datasets.CIFAR10(
             root=args.data_path,
@@ -67,10 +72,36 @@ def main(args):
             download=True,
             transform=transform_train,
         )
+        dataset_val = datasets.CIFAR10(
+            root=args.data_path,
+            train=False,
+            download=True,
+            transform=transform_train,
+        )
     else:
         raise NotImplementedError(f"Unsupported dataset {args.dataset}")
 
     logger.info(dataset_train)
+    if args.dataset in ["imagenet", "custom2"]:
+        sampler_val = torch.utils.data.SequentialSampler(dataset_val)
+        data_loader_val = torch.utils.data.DataLoader(
+            dataset_val,
+            sampler=sampler_val,
+            batch_size=args.batch_size,
+            num_workers=args.num_workers,
+            pin_memory=args.pin_mem,
+            drop_last=False,
+        )
+    else:
+        sampler_val = torch.utils.data.SequentialSampler(dataset_val)
+        data_loader_val = torch.utils.data.DataLoader(
+            dataset_val,
+            sampler=sampler_val,
+            batch_size=args.batch_size,
+            num_workers=args.num_workers,
+            pin_memory=args.pin_mem,
+            drop_last=False,
+        )
 
     logger.info("Intializing DataLoader")
     num_tasks = distributed_mode.get_world_size()
@@ -136,6 +167,12 @@ def main(args):
 
     loss_scaler = NativeScaler()
 
+    if args.auto_resume and not args.resume:
+        ckpt_file = os.path.join(args.output_dir, "checkpoint.pth")
+        if os.path.exists(ckpt_file):
+            logger.info(f"Auto-resuming from {ckpt_file}")
+            args.resume = ckpt_file
+
     load_model(
         args=args,
         model_without_ddp=model_without_ddp,
@@ -194,7 +231,7 @@ def main(args):
                 fid_samples = args.fid_samples // num_tasks
             eval_stats = eval_model(
                 model,
-                data_loader_train,
+                data_loader_val,
                 device,
                 epoch=epoch,
                 fid_samples=fid_samples,
